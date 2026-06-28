@@ -1,13 +1,13 @@
 {
   "banners": [
     {
-      "imageUrl": "https://i.ytimg.com/vi/b663EwTqpJg/hq720.jpg",
-      "redirectUrl": "https://t.me/your_telegram_channel",
-      "durationSeconds": 15
+      "imageUrl": "https://i.imgur.com/w8OJkdj.jpeg",
+      "redirectUrl": "https://www.facebook.com/piyash.7291",
+      "durationSeconds": 5
     },
     {
-      "imageUrl": "https://i.ibb.co/example2/banner2.jpg",
-      "redirectUrl": "https://discord.com",
+      "imageUrl": "https://i.imgur.com/xMhARg4.jpeg",
+      "redirectUrl": "https://www.facebook.com/piyash.7291",
       "durationSeconds": 5
     }
   ]
