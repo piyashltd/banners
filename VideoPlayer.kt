@@ -634,16 +634,14 @@ fun ExoPlayerView(
         val channel = playlist[currentIndex]
         val rawUrl = channel.urls.getOrNull(currentServerIndex) ?: channel.url
         
-        // 🚀 ১. URL এবং M3U Header আলাদা করে এক্সট্রাক্ট করা
+        // 🚀 ১. URL এবং M3U Header আলাদা করা
         var url = rawUrl.trim()
         val m3uHeaders = mutableMapOf<String, String>()
 
-        // লিংকে পাইপ (|) থাকলে হেডারগুলো বের করে Map-এ রাখা হচ্ছে
         if (rawUrl.contains("|")) {
             url = rawUrl.substringBefore("|").trim()
             val headerString = rawUrl.substringAfter("|").trim()
 
-            // Header গুলোকে আলাদা করা (যেমন: User-Agent=VLC&Referer=X)
             headerString.split("&").forEach { param ->
                 val pair = param.split("=", limit = 2)
                 if (pair.size == 2) {
@@ -655,18 +653,18 @@ fun ExoPlayerView(
         // ২. JSON থেকে Stream Config আনা
         val config = getConfigForUrl(url, streamRules)
 
-        // ৩. M3U এবং JSON হেডার একসাথে মার্জ (Merge) করা
+        // ৩. M3U এবং JSON হেডার মার্জ করা
         val finalHeaders = mutableMapOf<String, String>()
-        finalHeaders.putAll(config.headers) // প্রথমে JSON হেডার দিলাম
-        finalHeaders.putAll(m3uHeaders)     // এরপর M3U হেডার দিলাম (যদি একই Header থাকে, M3U টা প্রায়োরিটি পাবে)
+        finalHeaders.putAll(config.headers)
+        finalHeaders.putAll(m3uHeaders)
 
-        // User-Agent নির্ধারণ (M3U > JSON > Default ExoPlayer)
-        val finalUserAgent = finalHeaders["User-Agent"] ?: finalHeaders["user-agent"]
-            ?: config.userAgent.takeIf { it.isNotBlank() } ?: "ExoPlayer"
-
-        // User-Agent আলাদাভাবে সেট হবে, তাই Map থেকে রিমুভ করে দিচ্ছি যেন ডাবল না হয়
-        finalHeaders.remove("User-Agent")
-        finalHeaders.remove("user-agent")
+        // 🔥 আপডেট: কেস-ইনসেনসিটিভভাবে User-Agent বের করা
+        val uaKey = finalHeaders.keys.firstOrNull { it.equals("User-Agent", ignoreCase = true) }
+        val finalUserAgent = if (uaKey != null) {
+            finalHeaders.remove(uaKey) ?: config.userAgent.ifBlank { "ExoPlayer" }
+        } else {
+            config.userAgent.ifBlank { "ExoPlayer" }
+        }
 
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(finalUserAgent) 
@@ -681,7 +679,21 @@ fun ExoPlayerView(
 
         val mediaItemBuilder = MediaItem.Builder().setUri(url)
 
-        // 🔥 কাস্টম সাবটাইটেল থাকলে সেটা যুক্ত করা
+        // 🔥 প্রধান আপডেট: URL শেষে .m3u8 না থাকলেও প্রক্সি বা কুয়েরি চিনতে পেরে HLS MimeType ফোর্স করা
+        val lowerUrl = url.lowercase(Locale.getDefault())
+        when {
+            lowerUrl.contains(".m3u8") || lowerUrl.contains("/hls") || lowerUrl.contains("/proxy") || lowerUrl.contains("/playlist") || lowerUrl.contains("/stream") -> {
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            }
+            lowerUrl.contains(".mpd") || lowerUrl.contains("/dash") -> {
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
+            }
+            lowerUrl.contains(".ism") -> {
+                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_SS)
+            }
+        }
+
+        // কাস্টম সাবটাইটেল
         if (!channel.subtitleUrl.isNullOrEmpty()) {
             val subtitleConfig = MediaItem.SubtitleConfiguration.Builder(Uri.parse(channel.subtitleUrl.trim()))
                 .setMimeType(MimeTypes.TEXT_SSA) 
@@ -691,7 +703,7 @@ fun ExoPlayerView(
             mediaItemBuilder.setSubtitleConfigurations(listOf(subtitleConfig))
         }
 
-        // 🔥 Embedded CC পুরোপুরি বন্ধ করার লজিক
+        // Embedded CC বন্ধ রাখার লজিক
         val paramsBuilder = trackSelector.buildUponParameters()
         if (channel.subtitleUrl.isNullOrEmpty() || !isSubtitleEnabled) {
             paramsBuilder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -706,7 +718,7 @@ fun ExoPlayerView(
             val drmBuilder = when (config.drmType.lowercase(Locale.getDefault())) {
                 "widevine" -> MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                     .setLicenseUri(config.drmLicenseUrl.trim())
-                    .apply { if (finalHeaders.isNotEmpty()) setLicenseRequestHeaders(finalHeaders) } // 🔥 এখানেও ফাইনাল হেডার দেওয়া হলো
+                    .apply { if (finalHeaders.isNotEmpty()) setLicenseRequestHeaders(finalHeaders) }
                 "clearkey" -> MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
                     .setLicenseUri(config.drmLicenseUrl.trim())
                 else -> null
@@ -721,9 +733,8 @@ fun ExoPlayerView(
         
         lastLoadedUrl = url
 
-        // Resume পজিশন চেক করা (ভিওডি এর জন্য)
+        // Resume পজিশন
         val savedPosition = prefs.getLong("resume_pos_$url", 0L)
-        
         if (savedPosition > 0L) {
             exoPlayer.seekTo(savedPosition)
             currentPosition = savedPosition
@@ -736,6 +747,7 @@ fun ExoPlayerView(
         
         isControllerVisible = false  
     }
+    
     // 🔥 আপডেট করা অটো-হাইড লজিক
     LaunchedEffect(isControllerVisible, playbackState, isPlaying, hideTimeout, isChannelListVisible) {
         if (isControllerVisible && isPlaying && playbackState == Player.STATE_READY && !isChannelListVisible) {
