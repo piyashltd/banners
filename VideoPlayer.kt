@@ -317,9 +317,14 @@ fun ExoPlayerView(
         }.setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) // 🔥 PREFER এর বদলে ON দেওয়া হলো
         
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(50000, 50000, 2500, 5000)
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
+    .setBufferDurationsMs(
+        15000, // Min buffer (15s)
+        30000, // Max buffer (30s)
+        1500,  // Playback start buffer (1.5s)
+        3000   // Rebuffer (3s)
+    )
+    .setPrioritizeTimeOverSizeThresholds(true)
+    .build()
             
         ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
