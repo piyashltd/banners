@@ -130,10 +130,10 @@ class VolumeBoostProcessor : BaseAudioProcessor() {
     var volumeMultiplier: Float = 1.0f
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
-        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
-            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
-        }
-        return inputAudioFormat
+    if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+        return AudioProcessor.AudioFormat.NOT_SET // ক্র্যাশ না করে প্রসেসর বাইপাস করবে
+    }
+    return inputAudioFormat
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
